@@ -8,7 +8,7 @@ class ResultsObserver(abc.ABC):
     def observe(self, data: bytes) -> None: ...
 
 
-async def do_reliable_request(url: str, observer: ResultsObserver) -> None:
+async def do_reliable_request(url: str, observer: ResultsObserver, retries: int = None) -> None:
     """
     Одна из главных проблем распределённых систем - это ненадёжность связи.
 
@@ -21,10 +21,16 @@ async def do_reliable_request(url: str, observer: ResultsObserver) -> None:
 
     async with httpx.AsyncClient() as client:
         # YOUR CODE GOES HERE
-        response = await client.get(url)
-        response.raise_for_status()
-        data = response.read()
+        n_retries, timeout = 0, 1
+        while retries is None or n_retries < retries:
+            try:
+                response = await client.get(url, timeout=timeout)
+                response.raise_for_status()
+                data = response.read()
 
-        observer.observe(data)
-        return
+                observer.observe(data)
+                return
+            except httpx.HTTPError:
+                n_retries += 1
+                timeout += 5
         #####################
